@@ -4,66 +4,208 @@
 //
 
 #include "d/actor/d_a_tori_flag.h"
+#include "d/res/res_os.h"
+#include "d/d_com_inf_game.h"
 #include "d/d_procname.h"
+#include "d/d_cloth_packet.h"
+#include "d/d_a_obj.h"
+#include "f_op/f_op_actor_mng.h"
+#include "f_op/f_op_camera.h"
+#include "m_Do/m_Do_controller_pad.h"
+#include "m_Do/m_Do_ext.h"
+#include "d/d_kankyo_wether.h"
+
+
+const char daTori_Flag_c::m_arc_name[] = "Trflag";
+
+static dCcD_SrcCyl l_cyl_src = {
+    {0, 0, 0, 0, ~AT_TYPE_BOOMERANG, TG_SPRM_SET | TG_SPRM_IS_ENEMY, 0x00000079, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0},
+    {{0.0f, 0.0f, 0.0f, 30.0f, 400.0f}}};
+
+
+static daTori_Flag_HIO_c l_HIO;
+static cXyz l_flag_offset;
 
 /* 000000EC-00000118       .text __ct__17daTori_Flag_HIO_cFv */
-daTori_Flag_HIO_c::daTori_Flag_HIO_c() {
-    /* Nonmatching */
+daTori_Flag_HIO_c::daTori_Flag_HIO_c()
+{
+    m4 = -1;
+    m8 = 0.0f;
+    mC = 0;
 }
 
 /* 00000118-000001C4       .text set_mtx__13daTori_Flag_cFv */
-void daTori_Flag_c::set_mtx() {
-    /* Nonmatching */
+void daTori_Flag_c::set_mtx()
+{
+    mpModel->setBaseScale(scale);
+    mDoMtx_stack_c::transS(current.pos);
+    mDoMtx_stack_c::ZXYrotM(shape_angle);
+    mpModel->setBaseTRMtx(mDoMtx_stack_c::get());
+    mDoMtx_stack_c::transM(l_flag_offset);
+
+    mpCloth->setMtx(mDoMtx_stack_c::get());
 }
 
-/* 000001C4-000001E4       .text CheckCreateHeap__FP10fopAc_ac_c */
-static BOOL CheckCreateHeap(fopAc_ac_c*) {
-    /* Nonmatching */
+static BOOL CheckCreateHeap(fopAc_ac_c *thisx)
+{
+    daTori_Flag_c *self = static_cast<daTori_Flag_c *>(thisx);
+
+    return self->CreateHeap();
 }
 
-/* 000001E4-0000030C       .text CreateHeap__13daTori_Flag_cFv */
-void daTori_Flag_c::CreateHeap() {
-    /* Nonmatching */
+BOOL daTori_Flag_c::CreateHeap()
+{
+    J3DModelData *pModel;
+
+    pModel = static_cast<J3DModelData *>(dComIfG_getObjectRes(m_arc_name, 4));
+    JUT_ASSERT(0x120, pModel != NULL)
+
+    mpModel = mDoExt_J3DModel__create(pModel, 0, 0x11020203);
+
+    if (!mpModel)
+    {
+        return false;
+    }
+
+    ResTIMG *res1 = static_cast<ResTIMG *>(dComIfG_getObjectRes(m_arc_name, 7));
+    ResTIMG *res2 = static_cast<ResTIMG *>(dComIfG_getObjectRes("Cloth", 3));
+    mpCloth = dCloth_packetXlu_create(res1, res2, 5, 5, 210.0f, 105.0f, &tevStr, NULL);
+    if (!mpCloth)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 /* 0000030C-000003A4       .text CreateInit__13daTori_Flag_cFv */
-void daTori_Flag_c::CreateInit() {
-    /* Nonmatching */
+int daTori_Flag_c::CreateInit()
+{
+    cXyz *windVec;
+
+    mStts.Init(0xFF, 0xFF, this);
+    mCyl.Set(l_cyl_src);
+    mCyl.SetStts(&mStts);
+    windVec = dKyw_get_wind_vec();
+    mWindvec = *windVec;
+    set_mtx();
+    dKy_tevstr_init(&mClothTevStr, fopAcM_GetRoomNo(this), 0xFF);
+    cullMtx = mpModel->mBaseTransformMtx;
+    return 4;
 }
 
 /* 000003A4-000003C4       .text daTori_FlagCreate__FPv */
-static s32 daTori_FlagCreate(void*) {
-    /* Nonmatching */
+static s32 daTori_FlagCreate(void* i_this)
+{
+    return static_cast<daTori_Flag_c*>(i_this)->_create();
 }
 
 /* 000003C4-00000478       .text _create__13daTori_Flag_cFv */
-s32 daTori_Flag_c::_create() {
-    /* Nonmatching */
+s32 daTori_Flag_c::_create()
+{
+    s32 PVar1;
+    uint uVar2;
+
+    fopAcM_SetupActor(this, daTori_Flag_c);
+
+    PVar1 = dComIfG_resLoad(&mPhsTrflag, m_arc_name);
+    if ((PVar1 == cPhs_COMPLEATE_e) &&
+        (PVar1 = dComIfG_resLoad(&this->mPhsCloth, m_cloth_arc_name), PVar1 == cPhs_COMPLEATE_e))
+    {
+
+        uVar2 = fopAcM_entrySolidHeap(this, CheckCreateHeap, 0x1020);
+        if ((uVar2 & 0xff) == 0)
+        {
+            PVar1 = cPhs_ERROR_e;
+        }
+        else
+        {
+            PVar1 = CreateInit();
+        }
+    }
+    return PVar1;
+}
+
+daTori_Flag_c::daTori_Flag_c()
+{
 }
 
 /* 00000804-00000854       .text daTori_FlagDelete__FPv */
-static BOOL daTori_FlagDelete(void*) {
-    /* Nonmatching */
+static BOOL daTori_FlagDelete(void *thisx)
+{
+    daTori_Flag_c *self = static_cast<daTori_Flag_c *>(thisx);
+    dComIfG_resDelete(&self->mPhsTrflag, self->m_arc_name);
+    dComIfG_resDelete(&self->mPhsCloth, "Cloth"); // TODO why?
+    return TRUE;
 }
 
 /* 00000854-00000878       .text daTori_FlagExecute__FPv */
-static BOOL daTori_FlagExecute(void*) {
-    /* Nonmatching */
+// TODO come back after _execute
+static BOOL daTori_FlagExecute(void *thisx)
+{
+    return static_cast<daTori_Flag_c *>(thisx)->_execute();
 }
 
 /* 00000878-00000B1C       .text _execute__13daTori_Flag_cFv */
-BOOL daTori_Flag_c::_execute() {
-    /* Nonmatching */
+BOOL daTori_Flag_c::_execute()
+{
+    float fVar4;
+    float windVecMag;
+    cXyz local_44;
+
+    set_mtx();
+    mStts.Move();
+    if (mCyl.ChkAtHit() != 0)
+    {
+        daObj::HitSeStart(&current.pos, fopAcM_GetRoomNo(this), &mCyl, 0xb);
+    }
+    fopAcM_rollPlayerCrash(this, 40.0f, 7);
+    local_44 = current.pos + l_flag_offset;
+
+    local_44 = dKyw_get_AllWind_vecpow(&local_44);
+
+    // fVar4 = VECSquareMag(&local_44);
+    // fVar4 = local_44.abs();
+    // windVecMag = this->mWindvec.abs();
+    if (local_44.abs() > mWindvec.abs())
+    {
+        mWindvec = local_44;
+    }
+    else
+    {
+        cLib_addCalcPos2(&mWindvec, local_44, 0.05f, 0.05f);
+    }
+    mCyl.SetC(current.pos);
+
+    g_dComIfG_gameInfo.play.mCcS.Set(&mCyl);
+    // cCcS::Set(&d_com_inf_game::g_dComIfG_gameInfo.play.mCcS.parent, (cCcD_Obj *)&this->mCyl);
+
+    mpCloth->setParam(0.4f, -1.5f, 0.75f, 0.9f, 0.9f, 0x400, 0, 900, -800, 7.0f, 6.0f);
+    mpCloth->setWindPower(8.0f, 3.0f);
+    mpCloth->setGlobalWind(&mWindvec);
+    mpCloth->cloth_move();
+    return 0;
+}
+
+int daTori_Flag_c::_draw() {
+
+    g_env_light.settingTevStruct(TEV_TYPE_BG0, &this->current.pos, &this->tevStr);
+    g_env_light.settingTevStruct(TEV_TYPE_ACTOR, &this->current.pos, &this->mClothTevStr);
+    g_env_light.setLightTevColorType(this->mpModel, &this->tevStr);
+    mDoExt_modelUpdate(this->mpModel);
+    this->mpCloth->cloth_draw();
+    return 1;
 }
 
 /* 00000B1C-00000BB8       .text daTori_FlagDraw__FPv */
-static BOOL daTori_FlagDraw(void*) {
-    /* Nonmatching */
+static BOOL daTori_FlagDraw(void *i_this)
+{
+    return static_cast<daTori_Flag_c *>(i_this)->_draw();
 }
-
 /* 00000BB8-00000BC0       .text daTori_FlagIsDelete__FPv */
-static BOOL daTori_FlagIsDelete(void*) {
-    /* Nonmatching */
+static BOOL daTori_FlagIsDelete(void *)
+{
+    return true;
 }
 
 static actor_method_class daTori_FlagMethodTable = {
